@@ -1,0 +1,154 @@
+/* =========================================
+   GLITCH ANIMATIONS (Cyberpunk Motion)
+   ========================================= */
+
+/* Glitch Text Wrapper */
+.glitch-text {
+    position: relative;
+    display: inline-block;
+}
+
+/* Capas duplicadas para el efecto RGB Split */
+.glitch-text::before,
+.glitch-text::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: inherit;
+    /* Heredar fondo si es necesario, o transparente */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s;
+}
+
+/* Capa Cyan (Desplazamiento izquierda) */
+.glitch-text::before {
+    color: var(--cp-cyan);
+    z-index: -1;
+}
+
+/* Capa Magenta (Desplazamiento derecha) */
+.glitch-text::after {
+    color: var(--cp-magenta);
+    z-index: -2;
+}
+
+/* Trigger on Hover & Active classes */
+button:hover .glitch-text::before,
+.glitch-active .glitch-text::before {
+    opacity: 1;
+    animation: glitch-anim-cyan 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
+}
+
+button:hover .glitch-text::after,
+.glitch-active .glitch-text::after {
+    opacity: 1;
+    animation: glitch-anim-magenta 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
+}
+
+/* Keyframes - Movimientos rápidos y cortados (steps) */
+@keyframes glitch-anim-cyan {
+    0% {
+        transform: translate(0);
+        clip-path: inset(0 0 0 0);
+    }
+
+    20% {
+        transform: translate(-2px, 1px);
+        clip-path: inset(10% 0 60% 0);
+    }
+
+    40% {
+        transform: translate(-2px, -1px);
+        clip-path: inset(40% 0 10% 0);
+    }
+
+    60% {
+        transform: translate(1px, 2px);
+        clip-path: inset(80% 0 5% 0);
+    }
+
+    80% {
+        transform: translate(-1px, -2px);
+        clip-path: inset(20% 0 50% 0);
+    }
+
+    100% {
+        transform: translate(0);
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+@keyframes glitch-anim-magenta {
+    0% {
+        transform: translate(0);
+        clip-path: inset(0 0 0 0);
+    }
+
+    20% {
+        transform: translate(2px, -1px);
+        clip-path: inset(30% 0 10% 0);
+    }
+
+    40% {
+        transform: translate(2px, 1px);
+        clip-path: inset(10% 0 50% 0);
+    }
+
+    60% {
+        transform: translate(-3px, 0);
+        clip-path: inset(50% 0 30% 0);
+    }
+
+    80% {
+        transform: translate(1px, 2px);
+        clip-path: inset(10% 0 70% 0);
+    }
+
+    100% {
+        transform: translate(0);
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+
+    .glitch-text::before,
+    .glitch-text::after {
+        animation: none !important;
+        display: none;
+    }
+}
+
+/* Feedback Glitch (Container Shake) */
+.glitch-container-active {
+    animation: container-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes container-shake {
+
+    10%,
+    90% {
+        transform: translate3d(-1px, 0, 0);
+    }
+
+    20%,
+    80% {
+        transform: translate3d(2px, 0, 0);
+    }
+
+    30%,
+    50%,
+    70% {
+        transform: translate3d(-4px, 0, 0);
+    }
+
+    40%,
+    60% {
+        transform: translate3d(4px, 0, 0);
+    }
+}

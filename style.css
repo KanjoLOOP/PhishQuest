@@ -1,0 +1,630 @@
+/* =========================================
+   CYBERPUNK 2077 - NETWATCH STYLE THEME
+   ========================================= */
+:root {
+    /* Paleta Principal - Estructura Base, se sobrescribe en runtime por nivel */
+    --theme-hue: 180;
+    /* Cyan por defecto */
+
+    --bg-dark: #0A0A0A;
+    --bg-darker: #050505;
+    --bg-panel: #121212;
+
+    --cp-yellow: #FCEE09;
+    /* Acciones primarias y warnings */
+    --cp-magenta: #FF0054;
+    /* Peligro fijo */
+    --cp-cyan: hsl(var(--theme-hue), 100%, 50%);
+    /* Color de Tema Principal del Nivel */
+
+    --cp-grey: #2A2A2A;
+    /* Gris UI */
+
+    --text-main: #E0E0E0;
+    /* Blanco no puro */
+    --text-dim: #909090;
+    /* Texto secundario */
+
+    /* Fuentes */
+    --font-header: 'Orbitron', sans-serif;
+    --font-ui: 'Rajdhani', sans-serif;
+
+    /* Efectos */
+    --glow-yellow: 0 0 10px rgba(252, 238, 9, 0.6), 0 0 20px rgba(252, 238, 9, 0.1);
+    --glow-magenta: 0 0 10px rgba(255, 0, 84, 0.6), 0 0 20px rgba(255, 0, 84, 0.2);
+    --glow-cyan: 0 0 8px rgba(0, 229, 255, 0.6), 0 0 16px rgba(0, 229, 255, 0.2);
+
+    --scanline-color: rgba(0, 0, 0, 0.5);
+
+    /* UI Frames */
+    --border-width: 2px;
+    --clip-angle: 15px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    cursor: default;
+    /* Custom cursor could be added here */
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    overflow-x: hidden;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 500;
+}
+
+/* =========================================
+   BACKGROUND & EFFECTS
+   ========================================= */
+.animated-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    z-index: -2;
+    background: radial-gradient(circle at center, #111 0%, var(--bg-dark) 80%);
+    overflow: hidden;
+    transition: background-color 2s ease;
+}
+
+/* Efecto Grid 3D de Suelo - ESTÁTICO PERO PROFUNDO */
+.animated-bg::after {
+    content: "";
+    position: absolute;
+    bottom: -50%;
+    left: -50%;
+    width: 200%;
+    height: 150%;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 50px 50px;
+    transform: perspective(600px) rotateX(60deg) translateY(0) translateZ(-200px);
+    pointer-events: none;
+    box-shadow: inset 0px 100px 150px var(--bg-dark);
+}
+
+
+.scanline-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom,
+            rgba(255, 255, 255, 0),
+            rgba(255, 255, 255, 0) 50%,
+            rgba(0, 0, 0, 0.1) 50%,
+            rgba(0, 0, 0, 0.1));
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.2;
+    /* Reducida la opacidad para no cansar */
+    /* Eliminada la animación scanlineScroll para dar confort visual */
+}
+
+/* =========================================
+   LAYOUT
+   ========================================= */
+.container {
+    width: 100%;
+    max-width: 900px;
+    padding: 20px;
+    position: relative;
+    z-index: 10;
+}
+
+.screen {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.screen.active {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    opacity: 1;
+    /* Glitch animation removed per user request */
+}
+
+@keyframes glitchIntro {
+    0% {
+        clip-path: inset(0 100% 0 0);
+        opacity: 0;
+    }
+
+    20% {
+        clip-path: inset(0 60% 0 0);
+        opacity: 0.4;
+    }
+
+    40% {
+        clip-path: inset(0 80% 0 0);
+        opacity: 0.2;
+    }
+
+    60% {
+        clip-path: inset(0 20% 0 0);
+        opacity: 0.8;
+    }
+
+    100% {
+        clip-path: inset(0 0 0 0);
+        opacity: 1;
+    }
+}
+
+/* =========================================
+   TYPOGRAPHY
+   ========================================= */
+h1,
+h2,
+h3 {
+    font-family: var(--font-header);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.gradient-title {
+    font-size: 3.5rem;
+    color: var(--cp-yellow);
+    text-shadow: var(--glow-yellow);
+    margin-bottom: 0.2em;
+    position: relative;
+    display: inline-block;
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    color: var(--cp-cyan);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+}
+
+/* =========================================
+   COMPONENTS: CARDS & HUD
+   ========================================= */
+.card {
+    background-color: rgba(10, 10, 15, 0.85);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    padding: 24px;
+    position: relative;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0, 229, 255, 0.05);
+    border-radius: 8px;
+    /* Cambiado a corners suaves futuristas */
+}
+
+.instructions {
+    border-left-color: var(--cp-cyan);
+}
+
+.instructions li {
+    list-style: none;
+    margin: 10px 0;
+    padding-left: 20px;
+    position: relative;
+}
+
+.instructions li::before {
+    content: ">";
+    position: absolute;
+    left: 0;
+    color: var(--cp-yellow);
+}
+
+.hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--cp-grey);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    font-family: var(--font-header);
+    text-transform: uppercase;
+}
+
+.hud-item {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+}
+
+.hud-item span {
+    color: var(--cp-cyan);
+    font-size: 1.3rem;
+    margin-left: 8px;
+    text-shadow: 0 0 5px var(--cp-cyan);
+    transition: color 1s, text-shadow 1s;
+}
+
+.streak-text.on-fire {
+    color: var(--cp-magenta) !important;
+    text-shadow: var(--glow-magenta) !important;
+    animation: pulse 1s infinite alternate;
+}
+
+@keyframes pulse {
+    from {
+        opacity: 0.8;
+        text-shadow: 0 0 10px var(--cp-magenta);
+    }
+
+    to {
+        opacity: 1;
+        text-shadow: 0 0 20px var(--cp-magenta), 0 0 30px var(--cp-magenta);
+    }
+}
+
+/* =========================================
+   TIMERS & PROGRESS
+   ========================================= */
+.time-container {
+    margin-bottom: 15px;
+}
+
+.time-label {
+    font-size: 0.85rem;
+    color: var(--cp-cyan);
+    margin-bottom: 5px;
+    font-family: var(--font-header);
+    letter-spacing: 1px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.time-bar-container {
+    width: 100%;
+    height: 8px;
+    background: rgba(0, 229, 255, 0.1);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.time-bar {
+    height: 100%;
+    width: 100%;
+    background: var(--cp-cyan);
+    box-shadow: 0 0 10px var(--cp-cyan);
+    transition: width 0.1s linear, background-color 0.3s;
+}
+
+.time-bar.warning {
+    background: var(--cp-yellow);
+    box-shadow: 0 0 10px var(--cp-yellow);
+}
+
+.time-bar.danger {
+    background: var(--cp-magenta);
+    box-shadow: 0 0 10px var(--cp-magenta);
+    animation: pulseBg 0.5s infinite alternate;
+}
+
+@keyframes pulseBg {
+    from {
+        opacity: 0.6;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 3px;
+    background: #1a1a1a;
+    margin-bottom: 25px;
+    position: relative;
+}
+
+.progress-bar {
+    height: 100%;
+    background: var(--text-dim);
+    width: 0%;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* =========================================
+   GAME AREA / OS WINDOW
+   ========================================= */
+.question-card.window-frame {
+    padding: 0;
+    /* Remove default padding purely for the window body */
+    overflow: hidden;
+    animation: windowOpen 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes windowOpen {
+    0% {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.window-header {
+    background: rgba(30, 30, 40, 0.9);
+    border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.window-controls {
+    display: flex;
+    gap: 6px;
+}
+
+.ctrl {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.ctrl.close {
+    background-color: var(--cp-magenta);
+    box-shadow: 0 0 5px var(--cp-magenta);
+}
+
+.ctrl.min {
+    background-color: var(--cp-yellow);
+    box-shadow: 0 0 5px var(--cp-yellow);
+}
+
+.ctrl.max {
+    background-color: var(--cp-cyan);
+    box-shadow: 0 0 5px var(--cp-cyan);
+}
+
+.window-title {
+    color: var(--text-dim);
+    font-family: monospace;
+    font-size: 0.9rem;
+    flex-grow: 1;
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+.window-title span {
+    color: var(--cp-cyan);
+    font-weight: bold;
+}
+
+.window-body {
+    padding: 24px;
+    background: rgba(5, 5, 8, 0.6);
+}
+
+.mock-email-header {
+    background: rgba(20, 20, 25, 0.7);
+    border-left: 3px solid var(--cp-cyan);
+    padding: 15px;
+    margin-bottom: 15px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.95rem;
+    color: #e0e0e0;
+    border-radius: 0 4px 4px 0;
+}
+
+.mock-email-header strong {
+    color: var(--cp-cyan);
+}
+
+.mock-link {
+    color: #4fc3f7;
+    text-decoration: underline;
+    cursor: help;
+}
+
+.question-content p {
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+/* =========================================
+   BUTTONS
+   ========================================= */
+.arcade-btn {
+    background: transparent;
+    border: 2px solid var(--cp-yellow);
+    color: var(--cp-yellow);
+    font-family: var(--font-header);
+    font-size: 1.1rem;
+    padding: 15px 40px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: all 0.15s ease;
+    clip-path: polygon(10px 0, 100% 0,
+            100% calc(100% - 10px),
+            calc(100% - 10px) 100%,
+            0 100%, 0 10px);
+    position: relative;
+    box-shadow: inset 0 0 10px rgba(252, 238, 9, 0.1);
+}
+
+.arcade-btn:hover {
+    background: var(--cp-yellow);
+    color: #000;
+    box-shadow: var(--glow-yellow);
+    transform: translate(-1px, -1px);
+}
+
+.arcade-btn:active {
+    transform: translate(1px, 1px);
+}
+
+/* Safe Button */
+#btn-safe {
+    background: rgba(252, 238, 9, 0.05);
+    border-color: var(--cp-yellow);
+    color: var(--cp-yellow);
+}
+
+#btn-safe:hover {
+    background: var(--cp-yellow);
+    color: #000;
+    box-shadow: 0 0 20px rgba(252, 238, 9, 0.8);
+}
+
+/* Suspicious Button */
+#btn-sus {
+    background: rgba(255, 0, 84, 0.05);
+    border-color: var(--cp-magenta);
+    color: var(--cp-magenta);
+}
+
+#btn-sus:hover {
+    background: var(--cp-magenta);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(255, 0, 84, 0.8);
+}
+
+.controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.action-btn {
+    height: 80px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    /* Reuse arcade styles essentially, handled by id selectors above */
+    font-family: var(--font-header);
+    text-transform: uppercase;
+    border-width: 2px;
+    border-style: solid;
+    clip-path: polygon(15px 0, 100% 0,
+            100% calc(100% - 15px),
+            calc(100% - 15px) 100%,
+            0 100%, 0 15px);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+/* =========================================
+   FEEDBACK
+   ========================================= */
+.feedback {
+    margin-top: 20px;
+    padding: 20px;
+    font-family: var(--font-header);
+    border-left: 5px solid;
+    background: rgba(0, 0, 0, 0.5);
+    animation: slideInFeedback 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes slideInFeedback {
+    from {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.feedback.success {
+    border-color: var(--cp-yellow);
+    color: var(--cp-yellow);
+    text-shadow: 0 0 8px rgba(252, 238, 9, 0.4);
+}
+
+.feedback.error {
+    border-color: var(--cp-magenta);
+    color: var(--cp-magenta);
+    text-shadow: 0 0 8px rgba(255, 0, 84, 0.4);
+}
+
+/* =========================================
+   UTILITIES / OTHER SCREENS
+   ========================================= */
+.hidden {
+    display: none !important;
+}
+
+.input-group {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+input[type="text"] {
+    background: transparent;
+    border: 1px solid var(--cp-cyan);
+    color: var(--cp-cyan);
+    padding: 10px 20px;
+    font-family: var(--font-header);
+    text-transform: uppercase;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    box-shadow: var(--glow-cyan);
+}
+
+.leaderboard-container {
+    margin-top: 20px;
+    width: 100%;
+    text-align: left;
+}
+
+.leaderboard-container ul li {
+    padding: 10px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+}
+
+.leaderboard-container ul li:first-child {
+    color: var(--cp-yellow);
+    text-shadow: 0 0 5px var(--cp-yellow);
+}
+
+/* Glitch Text Effect Placeholder (simple CSS version) */
+.glitch-text {
+    position: relative;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .controls {
+        grid-template-columns: 1fr;
+    }
+
+    h1 {
+        font-size: 2.5rem;
+    }
+}

@@ -2,25 +2,41 @@
    ESTADO DEL JUEGO (State Management)
    ========================================= */
 const state = {
+    mode: 'exam',           // 'exam' (tiempo + puntos) | 'training' (sin presión)
     score: 0,
-    streak: 0, // Racha actual de aciertos consecutivos
+    streak: 0,              // Racha actual de aciertos consecutivos
     currentLevel: 1,
     currentQuestionIndex: 0,
-    levelQuestions: [], // Aquí cargaremos las preguntas del nivel actual
+    levelQuestions: [],     // Preguntas del nivel actual
+    levelCorrect: 0,        // Aciertos del nivel (para precisión del informe)
+    totalCorrect: 0,        // Aciertos globales (precisión final)
+    totalAnswered: 0,
     playerName: "",
-    timeLeft: 15.0,     // Temporizador activo
-    timerId: null
+    timeLeft: 15.0,
+    timerId: null,
+    answered: false         // Bloqueo de doble respuesta / teclado
 };
 
 // Configuración de Puntuación
 const POINTS_CORRECT = 100;
 const POINTS_WRONG = -50;
-const QUESTIONS_PER_LEVEL = 5; // Usaremos 5 preguntas por nivel
+const MAX_LEVEL = 7;
+const TIME_PER_QUESTION = 15.0;
+
+// Tabla de rangos por nivel (nombre + hue del acento)
+const RANKS = {
+    1: { name: "RECLUTA", hue: 38 },       // Ámbar base
+    2: { name: "BECARIO", hue: 200 },      // Azul acero
+    3: { name: "TÉCNICO", hue: 150 },      // Verde señal
+    4: { name: "AGENTE", hue: 270 },       // Violeta
+    5: { name: "ESPECIALISTA", hue: 20 },  // Naranja
+    6: { name: "ELITE", hue: 330 },        // Magenta
+    7: { name: "MAESTRO HACKER", hue: 0 }  // Rojo
+};
 
 /* =========================================
-   REFERENCIAS AL DOM (Interfaz)
+   REFERENCIAS AL DOM
    ========================================= */
-// Capturamos todos los elementos HTML que necesitamos manipular
 const screens = {
     start: document.getElementById('start-screen'),
     game: document.getElementById('game-screen'),
@@ -30,29 +46,45 @@ const screens = {
 
 const ui = {
     rankDisplay: document.getElementById('rank-display'),
-    levelDisplay: document.getElementById('level-display'),
+    threatMeter: document.getElementById('threat-meter'),
+    streakChip: document.getElementById('streak-chip'),
     streakDisplay: document.getElementById('streak-display'),
     scoreDisplay: document.getElementById('score-display'),
-    progressBar: document.getElementById('progress-bar'),
     timeBar: document.getElementById('time-bar'),
     timeText: document.getElementById('time-text'),
-    questionType: document.getElementById('question-type'),
+    modeTag: document.getElementById('mode-tag'),
+    caseNumber: document.getElementById('case-number'),
+    caseProgress: document.getElementById('case-progress'),
+    caseType: document.getElementById('case-type'),
+    specimen: document.getElementById('specimen'),
+    specimenChromeLabel: document.getElementById('specimen-chrome-label'),
     questionContent: document.getElementById('question-content'),
+    scanbeam: document.getElementById('scanbeam'),
+    stamp: document.getElementById('stamp'),
+    stampText: document.getElementById('stamp-text'),
     feedbackArea: document.getElementById('feedback-area'),
+    analysisVerdict: document.getElementById('analysis-verdict'),
+    analysisPoints: document.getElementById('analysis-points'),
+    analysisText: document.getElementById('analysis-text'),
     btnSafe: document.getElementById('btn-safe'),
     btnSus: document.getElementById('btn-sus'),
     btnNext: document.getElementById('btn-next'),
     levelScore: document.getElementById('level-score'),
+    levelAccuracy: document.getElementById('level-accuracy'),
+    levelNextRank: document.getElementById('level-next-rank'),
     levelTip: document.getElementById('level-tip'),
     finalScore: document.getElementById('final-score'),
+    finalAccuracy: document.getElementById('final-accuracy'),
+    finalRank: document.getElementById('final-rank'),
     playerAlias: document.getElementById('player-alias'),
-    leaderboardList: document.getElementById('leaderboard-list')
+    leaderboardList: document.getElementById('leaderboard-list'),
+    bestAgent: document.getElementById('best-agent'),
+    bestAgentText: document.getElementById('best-agent-text')
 };
 
 /* =========================================
-   SISTEMA DE SONIDO (Arcade Synth)
+   SISTEMA DE SONIDO (Synth minimalista)
    ========================================= */
-// Creamos sonidos sintéticos simples sin cargar archivos externos.
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 function playSound(type) {
@@ -62,297 +94,308 @@ function playSound(type) {
 
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-
     osc.connect(gainNode);
     gainNode.connect(audioCtx.destination);
+    const t = audioCtx.currentTime;
 
     if (type === 'success') {
-        // Sonido high-tech blip
+        // Doble blip ascendente limpio
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
-        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.2);
+        osc.frequency.setValueAtTime(660, t);
+        osc.frequency.setValueAtTime(990, t + 0.09);
+        gainNode.gain.setValueAtTime(0.001, t);
+        gainNode.gain.linearRampToValueAtTime(0.18, t + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+        osc.start(t);
+        osc.stop(t + 0.25);
     }
     else if (type === 'error') {
-        // Sonido grave distorsionado (Glitch/Error)
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(100, audioCtx.currentTime);
-        osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.4);
-        gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.4);
+        // Zumbido grave descendente
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(160, t);
+        osc.frequency.linearRampToValueAtTime(55, t + 0.35);
+        gainNode.gain.setValueAtTime(0.12, t);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        osc.start(t);
+        osc.stop(t + 0.4);
+    }
+    else if (type === 'stamp') {
+        // Golpe seco de sello (thud)
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(200, t);
+        osc.frequency.exponentialRampToValueAtTime(50, t + 0.12);
+        gainNode.gain.setValueAtTime(0.35, t);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        osc.start(t);
+        osc.stop(t + 0.15);
     }
     else if (type === 'click') {
-        // Tech UI click
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.05);
+        osc.frequency.setValueAtTime(600, t);
+        gainNode.gain.setValueAtTime(0.08, t);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        osc.start(t);
+        osc.stop(t + 0.05);
     }
 }
 
 /* =========================================
-   LÓGICA DEL JUEGO (Game Loop)
+   EVENT LISTENERS
    ========================================= */
-
-// Event Listeners (Escuchadores de eventos)
-document.getElementById('start-btn').addEventListener('click', () => { playSound('click'); startGame(); });
+document.getElementById('mode-training-btn').addEventListener('click', () => { playSound('click'); startGame('training'); });
+document.getElementById('mode-exam-btn').addEventListener('click', () => { playSound('click'); startGame('exam'); });
 document.getElementById('next-level-btn').addEventListener('click', () => { playSound('click'); startNextLevel(); });
-document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 document.getElementById('save-score-btn').addEventListener('click', () => { playSound('click'); saveScore(); });
 document.getElementById('quit-btn').addEventListener('click', () => {
-    if (confirm("¿Seguro que quieres abortar la misión? Perderás tu progreso.")) {
+    if (confirm("¿Abandonar el turno? Perderás tu progreso.")) {
         location.reload();
     }
 });
 
-// Botones de decisión (Seguro vs Sospechoso)
 ui.btnSafe.addEventListener('click', () => handleAnswer(false));
 ui.btnSus.addEventListener('click', () => handleAnswer(true));
 ui.btnNext.addEventListener('click', () => { playSound('click'); nextQuestion(); });
 
-// Función para iniciar el juego desde cero
-function startGame() {
+// Atajos de teclado: L = legítimo, F = fraude, Enter/Espacio = siguiente
+document.addEventListener('keydown', (e) => {
+    if (!screens.game.classList.contains('active')) return;
+    if (e.target.tagName === 'INPUT') return;
+
+    const key = e.key.toLowerCase();
+
+    if (!state.answered) {
+        if (key === 'l') handleAnswer(false);
+        else if (key === 'f') handleAnswer(true);
+    } else if (key === 'enter' || key === ' ') {
+        e.preventDefault();
+        playSound('click');
+        nextQuestion();
+    }
+});
+
+/* =========================================
+   FLUJO DEL JUEGO
+   ========================================= */
+function startGame(mode) {
+    state.mode = mode;
     state.score = 0;
     state.streak = 0;
-    state.currentLevel = 0; // Se incrementará en startNextLevel
-    switchScreen('game');   // Cambiar a pantalla de juego
-    startNextLevel();       // Cargar Nivel 1
+    state.totalCorrect = 0;
+    state.totalAnswered = 0;
+    state.currentLevel = 0; // Se incrementa en startNextLevel
+
+    // El modo entrenamiento oculta tiempo/puntos/racha vía CSS
+    document.body.classList.toggle('mode-training', mode === 'training');
+    ui.modeTag.textContent = mode === 'training' ? 'ENTRENAMIENTO' : 'EXAMEN';
+
+    startNextLevel();
 }
 
-// Carga el siguiente nivel y sus preguntas
 function startNextLevel() {
     state.currentLevel++;
 
-    // Condición de victoria final (ahora hay 7 niveles)
-    if (state.currentLevel > 7) {
+    if (state.currentLevel > MAX_LEVEL) {
         endGame();
         return;
     }
 
     state.currentQuestionIndex = 0;
+    state.levelCorrect = 0;
 
-    // Cambiar Rango y Tema de Color basado en el Nivel
     updateRankAndTheme(state.currentLevel);
 
-    // Filtramos las preguntas correspondientes al nivel actual
+    // Preguntas del nivel, barajadas (Fisher-Yates)
     state.levelQuestions = questionsDB.filter(q => q.level === state.currentLevel);
-
-    // Barajamos (Shuffle) las preguntas para que no salgan siempre en el mismo orden
-    // Algoritmo Fisher-Yates simple
     for (let i = state.levelQuestions.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [state.levelQuestions[i], state.levelQuestions[j]] = [state.levelQuestions[j], state.levelQuestions[i]];
     }
 
-    updateHUD(); // Actualizar textos de nivel y puntos
+    updateHUD();
     switchScreen('game');
     loadQuestion();
 }
 
-// Función auxiliar para cambiar visibilidad de pantallas
 function switchScreen(screenName) {
-    // Primero ocultamos todas
     Object.values(screens).forEach(s => {
         s.classList.add('hidden');
         s.classList.remove('active');
     });
-
-    // Mostramos la elegida
     screens[screenName].classList.remove('hidden');
-    void screens[screenName].offsetWidth; // Forzar repintado (reflow) para animaciones
+    void screens[screenName].offsetWidth; // Reflow para reiniciar animación de entrada
     screens[screenName].classList.add('active');
 }
 
-// Actualiza HUD (Heads Up Display)
 function updateHUD() {
-    ui.levelDisplay.textContent = state.currentLevel;
     ui.scoreDisplay.textContent = state.score;
-    ui.streakDisplay.textContent = state.streak;
-
-    // Efecto visual si racha >= 3 (modificado previemante de 5)
-    if (state.streak >= 3) {
-        ui.streakDisplay.classList.add('on-fire');
-    } else {
-        ui.streakDisplay.classList.remove('on-fire');
-    }
-
-    updateProgress();
+    ui.streakDisplay.textContent = `×${state.streak}`;
+    ui.streakChip.classList.toggle('on-fire', state.streak >= 3);
 }
 
-// Actualiza el Rango visual y el Color Tema general de CSS en base al Nivel
+// Rango + acento de color del nivel
 function updateRankAndTheme(level) {
-    let rankName = "NOVATO";
-    let hueValue = 180; // Default Cyan
+    const rank = RANKS[level] || RANKS[MAX_LEVEL];
+    ui.rankDisplay.textContent = rank.name;
+    document.documentElement.style.setProperty('--level-accent', `hsl(${rank.hue}, 90%, 62%)`);
 
-    if (level === 1) { rankName = "RECLUTA"; hueValue = 180; } // Cyan
-    else if (level === 2) { rankName = "BECARIO"; hueValue = 210; } // Azulado
-    else if (level === 3) { rankName = "TÉCNICO"; hueValue = 120; } // Verde MATRIX
-    else if (level === 4) { rankName = "AGENTE"; hueValue = 280; } // Púrpura Netrunner
-    else if (level === 5) { rankName = "ESPECIALISTA"; hueValue = 30; } // Naranja Alerta
-    else if (level === 6) { rankName = "ELITE"; hueValue = 330; } // Rosa Neón
-    else if (level >= 7) { rankName = "MAESTRO HACKER"; hueValue = 0; } // Rojo Diablo
-
-    ui.rankDisplay.textContent = rankName;
-    document.documentElement.style.setProperty('--theme-hue', hueValue);
+    // Medidor de amenaza: enciende tantos segmentos como nivel
+    const segments = ui.threatMeter.querySelectorAll('i');
+    segments.forEach((seg, i) => seg.classList.toggle('lit', i < level));
 }
 
-// Barra de progreso visual
-function updateProgress() {
-    const total = state.levelQuestions.length;
-    const current = state.currentQuestionIndex;
-    const percentage = (current / total) * 100;
-    ui.progressBar.style.width = `${percentage}%`;
-}
-
-// Cargar la pregunta actual en la tarjeta
+/* =========================================
+   PREGUNTAS
+   ========================================= */
 function loadQuestion() {
-    // Limpiamos el estado visual anterior
+    const q = state.levelQuestions[state.currentQuestionIndex];
+    state.answered = false;
+
+    // Reset visual
     ui.feedbackArea.classList.add('hidden');
-    ui.feedbackArea.className = 'feedback hidden';
+    ui.feedbackArea.classList.remove('success', 'error');
     ui.btnSafe.disabled = false;
     ui.btnSus.disabled = false;
-    ui.btnNext.classList.add('hidden');
     ui.btnSafe.classList.remove('hidden');
     ui.btnSus.classList.remove('hidden');
+    ui.btnNext.classList.add('hidden');
+    ui.stamp.classList.add('hidden');
+    ui.stamp.classList.remove('slam', 'legit', 'fraud');
 
-    // Obtenemos datos de la pregunta
-    const q = state.levelQuestions[state.currentQuestionIndex];
+    // Cabecera del expediente
+    ui.caseNumber.textContent = `#${q.id}`;
+    ui.caseProgress.textContent = `MUESTRA ${state.currentQuestionIndex + 1} / ${state.levelQuestions.length}`;
+    ui.caseType.textContent = q.type === 'email' ? 'EMAIL' : 'URL';
+    ui.specimenChromeLabel.textContent = q.type === 'email'
+        ? 'muestra interceptada — cliente de correo'
+        : 'muestra interceptada — trazado de enlace';
 
-    // Renderizamos contenido HTML seguro
-    ui.questionType.textContent = q.type === 'email' ? 'Email Entrante' : 'Sitio Web / URL';
+    // Contenido + animación de entrada + barrido de escaneo
     ui.questionContent.innerHTML = q.content;
+    ui.specimen.style.animation = 'none';
+    void ui.specimen.offsetWidth;
+    ui.specimen.style.animation = '';
 
-    updateProgress();
-    startTimer();
+    ui.scanbeam.classList.remove('scanning');
+    void ui.scanbeam.offsetWidth;
+    ui.scanbeam.classList.add('scanning');
+
+    // Sin contrarreloj en entrenamiento
+    if (state.mode === 'exam') {
+        startTimer();
+    }
 }
 
-// Iniciar temporizador
+/* =========================================
+   TEMPORIZADOR
+   ========================================= */
 function startTimer() {
     clearInterval(state.timerId);
-    state.timeLeft = 15.0; // 15 segundos máximo por pregunta
+    state.timeLeft = TIME_PER_QUESTION;
     ui.timeBar.style.width = '100%';
-    ui.timeBar.className = 'time-bar';
+    ui.timeBar.className = 'trace-bar';
     ui.timeText.textContent = state.timeLeft.toFixed(1);
 
     state.timerId = setInterval(() => {
         state.timeLeft -= 0.1;
 
         if (state.timeLeft <= 0) {
-            // Tiempo Agotado = Fallo forzado
             state.timeLeft = 0;
             clearInterval(state.timerId);
-            handleAnswer(null, true);
+            handleAnswer(null, true); // Timeout = fallo
         } else {
             ui.timeText.textContent = state.timeLeft.toFixed(1);
-            const percentage = (state.timeLeft / 15.0) * 100;
-            ui.timeBar.style.width = `${percentage}%`;
+            ui.timeBar.style.width = `${(state.timeLeft / TIME_PER_QUESTION) * 100}%`;
 
-            if (state.timeLeft < 5 && state.timeLeft >= 2) {
-                ui.timeBar.className = 'time-bar warning';
-            } else if (state.timeLeft < 2) {
-                ui.timeBar.className = 'time-bar danger';
+            if (state.timeLeft < 2) {
+                ui.timeBar.className = 'trace-bar danger';
+            } else if (state.timeLeft < 5) {
+                ui.timeBar.className = 'trace-bar warning';
             }
         }
     }, 100);
 }
 
-// Verificar respuesta del usuario ("isTimeoutMode" true indica que falló por expiración de tiempo)
+/* =========================================
+   VEREDICTO
+   ========================================= */
 function handleAnswer(userSaysPhishing, isTimeoutMode = false) {
-    clearInterval(state.timerId); // Detenemos el tiempo apenas responda
+    if (state.answered) return;
+    state.answered = true;
+    clearInterval(state.timerId);
 
     const q = state.levelQuestions[state.currentQuestionIndex];
-
-    // Si la función se llama por timeout, cuenta automáticamente como incorrecta.
     const isCorrect = isTimeoutMode ? false : (userSaysPhishing === q.isPhishing);
 
-    // Ocultar botones de decisión para dejar solo el de Siguiente
     ui.btnSafe.classList.add('hidden');
     ui.btnSus.classList.add('hidden');
 
+    // Sello con el veredicto REAL de la muestra
+    ui.stampText.textContent = q.isPhishing ? 'FRAUDE' : 'LEGÍTIMO';
+    ui.stamp.classList.remove('hidden');
+    ui.stamp.classList.add(q.isPhishing ? 'fraud' : 'legit');
+    void ui.stamp.offsetWidth;
+    ui.stamp.classList.add('slam');
+    playSound('stamp');
+
+    const isExam = state.mode === 'exam';
+    let pointsMsg = '';
+    state.totalAnswered++;
+
     if (isCorrect) {
-        // Acierto
         state.streak++;
+        state.levelCorrect++;
+        state.totalCorrect++;
 
-        // Bonus Dinámico por Tiempo: base(100) + segundos restantes * 10
-        const timeBonus = Math.floor(state.timeLeft * 10);
-        let points = POINTS_CORRECT + timeBonus;
-        let bonusMsg = ` :: SPEED BONUS +${timeBonus}`;
+        if (isExam) {
+            // Bonus por velocidad + racha (solo examen)
+            const timeBonus = Math.floor(state.timeLeft * 10);
+            let points = POINTS_CORRECT + timeBonus;
+            pointsMsg = `+${POINTS_CORRECT} · velocidad +${timeBonus}`;
 
-        // Lógica de Racha Extra
-        if (state.streak >= 3) {
-            const streakBonus = state.streak * 5;
-            points += streakBonus;
-            bonusMsg += ` :: COMBO +${streakBonus}`;
+            if (state.streak >= 3) {
+                const streakBonus = state.streak * 5;
+                points += streakBonus;
+                pointsMsg += ` · racha +${streakBonus}`;
+            }
+
+            state.score += points;
         }
 
-        state.score += points;
-        showFeedback(true, `[ DOMINIO VERIFICADO ]${bonusMsg} :: ${q.explanation}`);
-        playSound('success');
+        showFeedback(true, isCorrect, q.explanation, pointsMsg);
+        setTimeout(() => playSound('success'), 180);
     } else {
-        // Fallo
         state.streak = 0;
-        state.score += POINTS_WRONG;
-        if (state.score < 0) state.score = 0;
 
-        let errorReason = isTimeoutMode ? "[ TIEMPO AGOTADO ]" : "[ RIESGO DETECTADO ]";
-        showFeedback(false, `${errorReason} ${q.explanation}`);
-        playSound('error');
+        if (isExam) {
+            state.score += POINTS_WRONG;
+            if (state.score < 0) state.score = 0;
+            pointsMsg = `${POINTS_WRONG} pts`;
+        }
 
-        // Efecto Screen Shake de daño global
-        document.body.classList.remove('glitch-container-active');
-        void document.body.offsetWidth;
-        document.body.classList.add('glitch-container-active');
+        const verdictLabel = isTimeoutMode ? 'TIEMPO AGOTADO' : 'VEREDICTO ERRÓNEO';
+        showFeedback(false, isCorrect, q.explanation, pointsMsg, verdictLabel);
+        setTimeout(() => playSound('error'), 180);
+
+        // Sacudida de la muestra
+        ui.specimen.classList.remove('shake');
+        void ui.specimen.offsetWidth;
+        ui.specimen.classList.add('shake');
     }
 
-    // Actualizar HUD completo (Puntos y Racha) en tiempo real
     updateHUD();
-
-    ui.btnNext.classList.remove('hidden'); // Mostrar botón de continuar
+    ui.btnNext.classList.remove('hidden');
+    ui.btnNext.focus();
 }
 
-// Mostrar mensaje de resultado
-function showFeedback(isSuccess, message) {
-    ui.feedbackArea.textContent = message;
+function showFeedback(isSuccess, _isCorrect, explanation, pointsMsg, customLabel) {
+    ui.analysisVerdict.textContent = customLabel || (isSuccess ? '✓ ANÁLISIS CORRECTO' : '✕ VEREDICTO ERRÓNEO');
+    ui.analysisPoints.textContent = pointsMsg;
+    ui.analysisText.textContent = explanation;
     ui.feedbackArea.classList.remove('hidden', 'success', 'error');
     ui.feedbackArea.classList.add(isSuccess ? 'success' : 'error');
-
-    // Trigger Glitch Animation on Feedback
-    ui.feedbackArea.classList.remove('glitch-container-active');
-    void ui.feedbackArea.offsetWidth; // Force reflow
-    ui.feedbackArea.classList.add('glitch-container-active');
 }
 
-// Inicializar efectos Glitch en botones al cargar
-function initGlitchEffect() {
-    const buttons = document.querySelectorAll('button');
-    buttons.forEach(btn => {
-        // Encontrar nodo de texto directo
-        const textNode = Array.from(btn.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0);
-
-        if (textNode) {
-            const span = document.createElement('span');
-            span.className = 'glitch-text';
-            span.setAttribute('data-text', textNode.textContent.trim());
-            span.textContent = textNode.textContent.trim();
-
-            btn.replaceChild(span, textNode);
-        }
-    });
-}
-
-// Start Game + Init
-initGlitchEffect();
-
-// Avanzar a siguiente pregunta o nivel
 function nextQuestion() {
     state.currentQuestionIndex++;
 
@@ -363,85 +406,121 @@ function nextQuestion() {
     }
 }
 
-// Pantalla intermedia de nivel
+/* =========================================
+   INFORME DE NIVEL
+   ========================================= */
 function showLevelComplete() {
     ui.levelScore.textContent = state.score;
 
-    // Consejos específicos según el nivel superado
+    const total = state.levelQuestions.length;
+    const accuracy = total > 0 ? Math.round((state.levelCorrect / total) * 100) : 0;
+    ui.levelAccuracy.textContent = `${accuracy}%`;
+
+    // Siguiente rango (si queda nivel por delante)
+    const nextRank = RANKS[state.currentLevel + 1];
+    ui.levelNextRank.textContent = nextRank ? nextRank.name : 'MÁXIMO';
+
     const tips = [
-        "NIVEL 1 SUPERADO: Recuerda, los bancos nunca piden contraseñas por email.",
-        "NIVEL 2 SUPERADO: Verifica siempre las extensiones de archivos adjuntos (.exe, .js).",
-        "NIVEL 3 SUPERADO: Los ataques homográficos usan letras parecidas para engañarte.",
-        "NIVEL 4 SUPERADO: En móviles, desconfía de SMS (Smishing) y códigos QR en la calle.",
-        "NIVEL 5 SUPERADO: Cuidado con las ventanas falsas en navegadores (BitB) y la ingeniería social avanzada."
+        "Los bancos nunca piden contraseñas por email. Nunca.",
+        "Verifica siempre las extensiones de archivos adjuntos (.exe, .js).",
+        "Los ataques homográficos usan letras parecidas para engañarte.",
+        "En móviles, desconfía de SMS (Smishing) y códigos QR en la calle.",
+        "Cuidado con ventanas falsas en navegadores (BitB) e ingeniería social avanzada.",
+        "Los ataques de cadena de suministro imitan avisos automáticos legítimos.",
+        "El fraude BEC secuestra hilos de correo reales. Verifica cambios de cuenta por otro canal."
     ];
-    ui.levelTip.textContent = tips[state.currentLevel - 1] || "¡Buen trabajo!";
+    ui.levelTip.textContent = tips[state.currentLevel - 1] || "Buen trabajo, agente.";
 
     switchScreen('level');
 }
 
-// Pantalla final del juego
+/* =========================================
+   FINAL DE PARTIDA
+   ========================================= */
 function endGame() {
     ui.finalScore.textContent = state.score;
-    renderLeaderboard(); // Mostrar ranking actual antes de guardar
+    ui.finalRank.textContent = RANKS[Math.min(state.currentLevel - 1, MAX_LEVEL)].name;
+
+    const globalAccuracy = state.totalAnswered > 0
+        ? Math.round((state.totalCorrect / state.totalAnswered) * 100)
+        : 0;
+    ui.finalAccuracy.textContent = `${globalAccuracy}%`;
+
+    if (state.mode === 'exam') {
+        renderLeaderboard();
+    }
     switchScreen('end');
+    ui.playerAlias.focus();
 }
 
 /* =========================================
    PERSISTENCIA (LocalStorage)
    ========================================= */
-
-// Guardar puntuación
-function saveScore() {
-    const name = ui.playerAlias.value.trim() || "Agente Anónimo";
-    const newEntry = { name, score: state.score, date: new Date().toLocaleDateString() };
-
-    // Recuperar datos existentes
-    let leaderboard = JSON.parse(localStorage.getItem('phishquest_leaderboard') || '[]');
-    leaderboard.push(newEntry);
-
-    // Ordenar por puntuación descendente
-    leaderboard.sort((a, b) => b.score - a.score);
-    // Mantener solo los TOP 5
-    leaderboard = leaderboard.slice(0, 5);
-
-    // Guardar
-    localStorage.setItem('phishquest_leaderboard', JSON.stringify(leaderboard));
-
-    // Actualizar UI
-    renderLeaderboard();
-
-    // Feedback visual
-    const btn = document.getElementById('save-score-btn');
-    btn.disabled = true;
-    btn.textContent = "¡Guardado!";
-    btn.style.borderColor = "var(--accent-green)";
+function getLeaderboard() {
+    return JSON.parse(localStorage.getItem('phishquest_leaderboard') || '[]');
 }
 
-// Renderizar tabla de posiciones
+function saveScore() {
+    if (state.mode !== 'exam') return; // Entrenamiento no compite en el ranking
+
+    const name = ui.playerAlias.value.trim() || "ANÓNIMO";
+    const newEntry = { name, score: state.score, date: new Date().toLocaleDateString() };
+
+    let leaderboard = getLeaderboard();
+    leaderboard.push(newEntry);
+    leaderboard.sort((a, b) => b.score - a.score);
+    leaderboard = leaderboard.slice(0, 5);
+
+    localStorage.setItem('phishquest_leaderboard', JSON.stringify(leaderboard));
+    renderLeaderboard();
+
+    const btn = document.getElementById('save-score-btn');
+    btn.disabled = true;
+    btn.textContent = "✓ CREDENCIAL REGISTRADA";
+}
+
 function renderLeaderboard() {
     const list = ui.leaderboardList;
-    list.innerHTML = ""; // Limpiar lista
+    list.innerHTML = "";
 
-    let leaderboard = JSON.parse(localStorage.getItem('phishquest_leaderboard') || '[]');
+    const leaderboard = getLeaderboard();
 
     if (leaderboard.length === 0) {
-        list.innerHTML = "<li style='text-align:center;'>Sin registros. ¡Sé el primero!</li>";
+        const li = document.createElement('li');
+        li.className = 'lb-empty';
+        li.textContent = "Sin registros en el archivo. Sé el primero.";
+        list.appendChild(li);
         return;
     }
 
     leaderboard.forEach((entry, index) => {
         const li = document.createElement('li');
-        // Iconos para top 3
-        let rankIcon = `#${index + 1}`;
-        if (index === 0) rankIcon = '🥇';
-        if (index === 1) rankIcon = '🥈';
-        if (index === 2) rankIcon = '🥉';
 
-        li.innerHTML = `
-            <span>${rankIcon} ${entry.name}</span>
-            <span>${entry.score} pts</span>
-        `;
+        const rank = document.createElement('span');
+        rank.className = 'lb-rank';
+        rank.textContent = `${String(index + 1).padStart(2, '0')}.`;
+
+        const name = document.createElement('span');
+        name.className = 'lb-name';
+        name.textContent = entry.name;
+
+        const score = document.createElement('span');
+        score.className = 'lb-score';
+        score.textContent = `${entry.score} pts`;
+
+        li.append(rank, name, score);
         list.appendChild(li);
     });
 }
+
+/* =========================================
+   INIT — pantalla de inicio
+   ========================================= */
+(function init() {
+    const leaderboard = getLeaderboard();
+    if (leaderboard.length > 0) {
+        const best = leaderboard[0];
+        ui.bestAgentText.textContent = `${best.name} — ${best.score} pts`;
+        ui.bestAgent.classList.remove('hidden');
+    }
+})();

@@ -145,13 +145,49 @@ function playSound(type) {
 document.getElementById('mode-training-btn').addEventListener('click', () => { playSound('click'); startGame('training'); });
 document.getElementById('mode-exam-btn').addEventListener('click', () => { playSound('click'); startGame('exam'); });
 document.getElementById('next-level-btn').addEventListener('click', () => { playSound('click'); startNextLevel(); });
-document.getElementById('restart-btn').addEventListener('click', () => location.reload());
+document.getElementById('restart-btn').addEventListener('click', () => { playSound('click'); resetToMenu(); });
 document.getElementById('save-score-btn').addEventListener('click', () => { playSound('click'); saveScore(); });
-document.getElementById('quit-btn').addEventListener('click', () => {
-    if (confirm("¿Abandonar el turno? Perderás tu progreso.")) {
-        location.reload();
+
+// Abandonar turno: confirmación de doble pulsación (sin confirm() nativo,
+// que puede estar bloqueado en iframes/sandbox)
+const quitBtn = document.getElementById('quit-btn');
+let quitArmed = false;
+let quitTimerId = null;
+
+quitBtn.addEventListener('click', () => {
+    if (!quitArmed) {
+        quitArmed = true;
+        quitBtn.textContent = "⚠ ¿seguro? pulsa otra vez";
+        playSound('click');
+        quitTimerId = setTimeout(disarmQuit, 3000);
+    } else {
+        disarmQuit();
+        resetToMenu();
     }
 });
+
+function disarmQuit() {
+    quitArmed = false;
+    clearTimeout(quitTimerId);
+    quitBtn.textContent = "✕ abandonar turno";
+}
+
+// Volver al menú principal reseteando todo el estado (sin recargar la página)
+function resetToMenu() {
+    clearInterval(state.timerId);
+    state.timerId = null;
+    state.answered = false;
+    document.body.classList.remove('mode-training');
+
+    // Restaurar botón de guardado y alias para la próxima partida
+    const saveBtn = document.getElementById('save-score-btn');
+    saveBtn.disabled = false;
+    saveBtn.textContent = "REGISTRAR CREDENCIAL";
+    ui.playerAlias.value = "";
+
+    refreshBestAgent();
+    switchScreen('start');
+}
 
 ui.btnSafe.addEventListener('click', () => handleAnswer(false));
 ui.btnSus.addEventListener('click', () => handleAnswer(true));
@@ -516,11 +552,13 @@ function renderLeaderboard() {
 /* =========================================
    INIT — pantalla de inicio
    ========================================= */
-(function init() {
+function refreshBestAgent() {
     const leaderboard = getLeaderboard();
     if (leaderboard.length > 0) {
         const best = leaderboard[0];
         ui.bestAgentText.textContent = `${best.name} — ${best.score} pts`;
         ui.bestAgent.classList.remove('hidden');
     }
-})();
+}
+
+refreshBestAgent();
